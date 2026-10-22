@@ -48,7 +48,7 @@ OPENAI_MODEL = "a-Responses-compatible-model-available-to-your-account"
 
 Use an actual model ID supported by the API account. No model or key is assumed. Do not commit a real `secrets.toml` or paste keys into the chatbot. `.streamlit/secrets.toml.example` contains placeholders only.
 
-After configuration, users can enable **Use AI agent** in Chat. Messages and selected tool evidence are then sent to OpenAI. Calls use the Responses API with storage disabled, a bounded tool loop and read-only tools: compound search, compound evidence, SMILES analysis and dataset summary. The model cannot change a calculated evidence status, assign a neighbour's RRF to a query, change data, run arbitrary code or deploy the app. Deterministic source results remain available below the response. On API failure, the app returns the local evidence result with a notice.
+After configuration, users can enable **Use AI agent** in Chat. Messages and selected tool evidence are then sent to OpenAI. Calls use the Responses API with storage disabled and a bounded tool loop. The first tool call must use local evidence. For an explicit PubChem/property request, or one unresolved local identity, later steps can call a read-only PubChem PUG REST tool. The deployment therefore needs outbound HTTPS access to `pubchem.ncbi.nlm.nih.gov`; PubChem does not require an API key. The model cannot change a calculated evidence status, assign a neighbour's RRF to a query, change data, run arbitrary code or deploy the app. Local and PubChem results stay separate. On an OpenAI or PubChem failure, local evidence remains available.
 
 The SDK/tool-loop contract is tested with a mock client. Live model responses require a real key/model and have not been exercised when those credentials are absent.
 

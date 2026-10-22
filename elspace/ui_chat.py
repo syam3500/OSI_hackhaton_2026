@@ -52,6 +52,27 @@ def show_reply(reply: dict, key: str):
                 st.session_state["pending_query"] = compound["compound_id"]
                 st.session_state["pending_input_mode"] = "Dataset search"
                 st.rerun()
+    for index, external in enumerate(reply.get("external_evidence", [])):
+        status = external.get("match_status", "Unavailable")
+        with st.expander("PubChem online result · " + status):
+            st.write("**Match:** " + status + " · " + str(external.get("match_basis") or "Not assessed"))
+            if external.get("cid") is not None:
+                st.write("**" + str(external.get("name") or "PubChem compound") + "** · CID " + str(external["cid"]))
+                properties = pd.DataFrame([{
+                    "Molecular formula": external.get("molecular_formula"),
+                    "Molecular weight": external.get("molecular_weight"),
+                    "InChIKey": external.get("inchikey"),
+                }])
+                st.dataframe(properties, hide_index=True, width="stretch")
+                if external.get("smiles"):
+                    st.caption("SMILES")
+                    st.code(external["smiles"], language=None)
+                if external.get("pubchem_url"):
+                    st.markdown("[Open this PubChem record](" + external["pubchem_url"] + ")")
+            for warning in external.get("warnings", []):
+                st.warning(warning)
+            if external.get("retrieved_at"):
+                st.caption("Live PubChem PUG REST result · retrieved " + external["retrieved_at"])
     for index, candidate in enumerate(reply.get("candidates", [])):
         if st.button(f"{candidate['name']} · {candidate['compound_id']}", key=f"{key}_candidate_{index}"):
             st.session_state["queued_chat_prompt"] = "Check " + candidate["compound_id"]
@@ -88,7 +109,7 @@ def render_chat(store, cutoff: float, margin: float, neighbours_count: int, vers
     st.title("Ask about your chemical data.")
     active = store.manifest.get("active_targets", {"label": "Borton", "rows": store.manifest["counts"]["borton_rows"]})
     st.caption(f"{active['label']} · {active['rows']:,} target rows · FDA CLAP, chemical classes, hazards, polymers and MS/MS references")
-    st.caption("AI agent sends messages and selected evidence to OpenAI." if use_agent else "Local evidence assistant · No API key needed · No RRF or toxicity prediction")
+    st.caption("AI agent sends messages and selected evidence to OpenAI and may query PubChem when needed." if use_agent else "Local evidence assistant · No API key needed · No RRF or toxicity prediction")
     if not messages:
         st.write("Check a compound, compare its analytical methods, or inspect the source data.")
         starters = st.columns(3)

@@ -44,4 +44,4 @@ The group chat, draft code, background brief and existing repository notebook in
 - MassSpecGym: [Dataset](https://huggingface.co/datasets/roman-bushuiev/MassSpecGym), [code](https://github.com/pluskal-lab/MassSpecGym)
 - NIST: [LC-MS/MS and GC-MS measurements of polymer extractables and leachables](https://data.nist.gov/od/id/ark:/88434/mds2-4147)
 
-Raw and processed files are ignored by Git. Review each source's redistribution terms before publishing them. The app itself performs no model training or external database queries.
+Raw and processed files are ignored by Git. Review each source's redistribution terms before publishing them. The app performs no model training. The default local mode makes no external database query. The optional AI agent can request a small live PubChem PUG REST property record. The UI labels that result as online evidence and keeps it separate from the prepared build.

@@ -21,7 +21,7 @@ The local build has prepared data in `data/processed/`. A deployment also includ
 
 **Chat** is the default entry point, with conversation history, prompt examples, follow-up compound context, source results and an **Open compound on map** action. Local mode answers focused evidence questions without a model or API key. It is explicitly labeled a local assistant, not an LLM agent.
 
-An optional OpenAI Responses tool-calling agent is implemented. Add `OPENAI_API_KEY` and `OPENAI_MODEL` to server environment/secrets, then enable **Use AI agent** in Chat. It can call read-only compound search, evidence, SMILES and dataset-summary tools. It does not replace the chemistry rules or predict RRFs/toxicity. No real API credentials are bundled, and live model behavior needs account configuration.
+An optional OpenAI Responses tool-calling agent is implemented. Add `OPENAI_API_KEY` and `OPENAI_MODEL` to server environment/secrets, then enable **Use AI agent** in Chat. It uses local read-only compound, evidence, SMILES and dataset-summary tools first. For an explicit PubChem/property request, or one unresolved local identity, it can also fetch a small live PubChem PUG REST property record. PubChem candidates stay separate from local measured evidence and never replace the chemistry rules or predict RRFs/toxicity. No real API credentials are bundled, and live model behavior needs account configuration.
 
 In **Data & sources**, upload **CSV or XLSX** target compounds and map name/CAS/SMILES columns. This changes chat and map targets for your session while retaining the reference layers. Default runtime data is **Parquet**, prepared from the original XLSX/PDF/CSV/TSV sources. Permanent reference/default changes use the preparation pipeline and a new deployment bundle.
 
@@ -60,7 +60,7 @@ curl -L --fail --retry 2 \
   -o data/raw/MassSpecGym.tsv
 ```
 
-Without that file, preparation still works and the interface says MassSpecGym is not loaded. No public lookup runs automatically in the app.
+Without that file, preparation still works and the interface says MassSpecGym is not loaded. The local assistant and Explore workspace do not perform public lookups. Only the enabled AI agent can make a bounded PubChem PUG REST request when the question needs it.
 
 ## Evidence rules
 
