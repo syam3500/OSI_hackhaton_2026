@@ -1,8 +1,26 @@
-# Deploy E&L Atlas on Streamlit Community Cloud
+# Deploy E&L Atlas
 
 The app is prepared for deployment from `syam3500/OSI_hackhaton_2026`. Cloud hosting runs the same Streamlit application, including chat, the map and session target uploads.
 
-## Deployment settings
+## Vercel
+
+`Dockerfile.vercel` runs the original Streamlit app on Vercel's Container Runtime; it does not replace the chemistry code with a static demo. Vercel builds the Python 3.12 image remotely and routes HTTP/WebSocket traffic to Streamlit. The prepared data bundle is verified and unpacked during the image build.
+
+From the repository root, with the existing Vercel account authenticated:
+
+```bash
+vercel deploy --prod --yes
+```
+
+Use a separate project for E&L Atlas, not an unrelated existing deployment. `.vercelignore` and `.dockerignore` exclude local environments, raw data, session output and credentials. Only the runtime code, pinned dependencies, app configuration and prepared bundle are copied into the image. The `.vercel/` project link is local and ignored by Git.
+
+For later updates, push the changes to `ritwik` and redeploy using the command above. A Git push triggers deployment automatically only if the Vercel project has separately been connected to that repository and branch. Container/WebSocket support is currently a Vercel beta; cold starts and connection duration limits apply. Chats and uploads are session-only, so reconnects or scaling may reset them.
+
+For the optional AI agent, use Vercel project environment variables `OPENAI_API_KEY` and `OPENAI_MODEL`, then redeploy. Do not include keys in the image or repository. Without these, the local evidence assistant remains fully available.
+
+Official references: [Container Runtime](https://vercel.com/docs/functions/runtimes/container), [WebSocket connections](https://vercel.com/kb/guide/do-vercel-serverless-functions-support-websocket-connections).
+
+## Streamlit Community Cloud (alternative)
 
 | Field | Value |
 |---|---|
@@ -54,7 +72,7 @@ python scripts/package_deployment.py
 python -m pytest -q
 ```
 
-4. Publish the updated source and `deployment/evidence.zip` to the deployed GitHub branch. Streamlit rebuilds the app from repository updates. A changed bundle replaces the previously extracted default data; active session uploads are cleared when the reference version changes.
+4. Publish the updated source and `deployment/evidence.zip` to the deployed GitHub branch and redeploy on Vercel (or let a configured Git integration rebuild). Streamlit Community Cloud rebuilds automatically from repository updates. A changed bundle replaces the previously extracted default data; active session uploads are cleared when the reference version changes.
 
 Changing a reference layer means producing a compatible prepared build, not treating an arbitrary uploaded target CSV as measured FDA evidence. `DATA_SOURCES.md` and the manifest document the default inputs. Review source redistribution terms before publishing a different data bundle.
 

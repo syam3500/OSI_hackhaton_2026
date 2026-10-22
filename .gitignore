@@ -1,4 +1,5 @@
 .venv/
+.vercel/
 __pycache__/
 .pytest_cache/
 .DS_Store
@@ -8,3 +9,4 @@ data/processed/*
 !data/processed/README.md
 output/
 .streamlit/secrets.toml
+.env*

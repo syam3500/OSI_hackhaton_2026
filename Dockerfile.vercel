@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=80
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY elspace ./elspace
+COPY .streamlit/config.toml ./.streamlit/config.toml
+COPY deployment/evidence.zip ./deployment/evidence.zip
+RUN python -c "from pathlib import Path; from elspace.bootstrap import ensure_dataset; from elspace.evidence import EvidenceStore; EvidenceStore.load(ensure_dataset(Path('data/processed'), Path('deployment/evidence.zip')))"
+
+EXPOSE 80
+CMD ["sh", "-c", "exec python -m streamlit run app/app.py --server.address 0.0.0.0 --server.port ${PORT:-80} --server.fileWatcherType none"]
