@@ -1,0 +1,2 @@
+clap_code,reason
+RM84,"The FDA LC/MS-negative PDF describes the commercial material as a blend and monitors only tri-n-octyl trimellitate. The team's PubChem structure is unverified for this material. Keep method records by CLAP code/CAS; exclude this structure from identity bridges and similarity panels pending review."
