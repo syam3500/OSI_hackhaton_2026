@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import base64
 from io import BytesIO
 import re
 
@@ -80,3 +81,22 @@ def molecule_image(smiles: str) -> bytes:
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def molecule_data_uri(smiles: str) -> str:
+    return "data:image/png;base64," + base64.b64encode(molecule_image(smiles)).decode("ascii")
+
+
+def molecular_properties(smiles: str) -> dict:
+    properties = structure(smiles)
+    if properties is None:
+        raise ValueError("A valid molecular structure is required.")
+    molecule = Chem.MolFromSmiles(properties["smiles_std"])
+    return {"Source molecular formula": rdMolDescriptors.CalcMolFormula(Chem.MolFromSmiles(smiles)),
+            "Molecular formula": rdMolDescriptors.CalcMolFormula(molecule),
+            **{label: round(properties[name], 3) for name, label in DESCRIPTORS.items()},
+            "Monoisotopic mass (Da)": round(Descriptors.ExactMolWt(molecule), 5),
+            "Heavy atoms": molecule.GetNumHeavyAtoms(),
+            "Aromatic rings": rdMolDescriptors.CalcNumAromaticRings(molecule),
+            "Fraction sp³ carbons": round(rdMolDescriptors.CalcFractionCSP3(molecule), 3),
+            "Crippen molar refractivity": round(Crippen.MolMR(molecule), 3)}

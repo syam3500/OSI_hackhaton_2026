@@ -33,11 +33,11 @@ Official references: [Container Runtime](https://vercel.com/docs/functions/runti
 
 Sign in at [Streamlit Community Cloud](https://share.streamlit.io), select the workspace for the repository owner, create an app and use the settings above. The source changes and prepared bundle must first be present on the selected GitHub branch.
 
-The deployment bundle is about 2.8 MB. It contains only the prepared chemistry/evidence tables, PCA projection and provenance. It does not contain the raw 262 MB MassSpecGym download, source workbooks/PDFs, private chat, local environment, or credentials. Source records retain their reported limitations and identity exclusions.
+The deployment bundle is about 33 MB. It contains prepared chemistry/evidence tables, 72,115 representative real MS/MS peak records, PCA projection and provenance. It does not contain the full raw 262 MB MassSpecGym download, source workbooks/PDFs, private chat, local environment, or credentials. Source records retain their reported limitations and identity exclusions.
 
 ## Chat and the optional AI agent
 
-The default chat is a local evidence assistant. It works without any model credentials, makes no model API calls and routes focused questions to the same source and chemistry calculations as the map.
+The default chat is a local evidence assistant with detailed answers. It works without model credentials and makes no model API calls. When **Look up unknown compounds in PubChem** is enabled, missing CAS/name/CID requests can use NCBI PUG-REST; disable it for fully offline use. The requested identifier alone is sent to PubChem, not the uploaded dataset. Server egress to `pubchem.ncbi.nlm.nih.gov` is needed for lookup; timeouts/rate limits produce an explicit notice rather than a guessed identity.
 
 To enable the optional OpenAI tool-calling agent, add these values in the app's **Advanced settings → Secrets** or **Settings → Secrets**:
 
@@ -48,7 +48,7 @@ OPENAI_MODEL = "a-Responses-compatible-model-available-to-your-account"
 
 Use an actual model ID supported by the API account. No model or key is assumed. Do not commit a real `secrets.toml` or paste keys into the chatbot. `.streamlit/secrets.toml.example` contains placeholders only.
 
-After configuration, users can enable **Use AI agent** in Chat. Messages and selected tool evidence are then sent to OpenAI. Calls use the Responses API with storage disabled, a bounded tool loop and read-only tools: compound search, compound evidence, SMILES analysis and dataset summary. The model cannot change a calculated evidence status, assign a neighbour's RRF to a query, change data, run arbitrary code or deploy the app. Deterministic source results remain available below the response. On API failure, the app returns the local evidence result with a notice.
+After configuration, users can enable **Use AI agent** in Chat. Messages and selected tool evidence are then sent to OpenAI. Calls use the Responses API with storage disabled, a bounded tool loop and read-only tools: compound search, compound evidence, SMILES analysis, PubChem lookup and dataset summary. The model cannot change a calculated evidence status, assign a neighbour's RRF to a query, change data, run arbitrary code or deploy the app. Classifier integration is excluded and is not replaced by LLM guesses. Deterministic source results remain available below the response. On API failure, the app returns the local evidence result with a notice.
 
 The SDK/tool-loop contract is tested with a mock client. Live model responses require a real key/model and have not been exercised when those credentials are absent.
 

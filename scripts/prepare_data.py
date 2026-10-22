@@ -90,6 +90,8 @@ def parse_fda(path: Path, method: str) -> list[dict]:
 
 
 def prepare_massspecgym(path: Path, output: Path) -> dict:
+    from elspace.spectra import prepare_reference_peaks
+
     required = ["identifier", "inchikey", "smiles", "adduct", "instrument_type"]
     groups = defaultdict(lambda: {"identifiers": [], "adducts": set(), "instruments": set(), "positive": 0, "negative": 0, "unknown": 0})
     count = 0
@@ -115,7 +117,8 @@ def prepare_massspecgym(path: Path, output: Path) -> dict:
     } for key, entry in groups.items()]
     pd.DataFrame(rows).to_parquet(output / "massspecgym.parquet", index=False)
     return {"loaded": True, "spectra": count, "connectivity_keys": len(rows), "source_file": path.name,
-            "match_basis": "InChIKey first block (connectivity only; not stereochemistry)"}
+            "match_basis": "InChIKey first block (connectivity only; not stereochemistry)",
+            "peak_spectra": prepare_reference_peaks(path, output / "massspecgym_peaks.parquet")}
 
 
 def build(background: Path, draft: Path, output: Path, massspecgym: Path | None):

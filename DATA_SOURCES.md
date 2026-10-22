@@ -10,7 +10,7 @@ This is a build from real supplied datasets, not a fabricated sample. Counts bel
 | Draft `sample_data/structures_clap.csv` | Previously resolved PubChem SMILES; retained as team-supplied structures, not new verified lookups | 103 usable structures after withholding RM84; RM24 and RM104 unresolved |
 | `1-s2.0-S0273230026001364-mmc1_1285tox.xlsx`, `Compiled Dataset` | Reported CAS, SMILES, chemical name, Tier 1 and Tier 2 classes | 1,289 rows, despite the filename |
 | `plastchem_db_v1.01.xlsx`, `Full database`, second-row headers | CAS, InChIKey, structure bridges, hazard values, polymer values, functions and industrial uses | 17,932 actual data rows; duplicate source evidence preserved |
-| Public `data/MassSpecGym.tsv` | Spectrum ID, InChIKey, adduct, instrument metadata; grouped without loading peak arrays into the app | 231,104 spectra; 28,929 connectivity keys |
+| Public `data/MassSpecGym.tsv` | Spectrum ID, InChIKey, adduct, instrument metadata and real m/z/intensity arrays | 231,104 source spectra; 28,929 connectivity keys; 72,115 representative peak records bundled |
 | `data/manual/structure_overrides.csv` | Explicit hand-reviewed Borton structures, when supplied | Empty initially |
 | `data/manual/clap_structure_exclusions.csv` | Documented exclusion of the unverified RM84 structure | One reviewed exclusion |
 
@@ -30,6 +30,16 @@ RM84 is described by the FDA as a commercial blend. The supplied draft assigns i
 - **Stavitskaya:** the supplied supplement provides chemical classes, not a row-level toxic/non-toxic endpoint. The app does not transform dataset membership into a toxicity label.
 - **PlastChem:** hazard scores and associations are displayed as reported. The companion `Hazard_information_PlastChem_v1.01.xlsx` is not separately ingested; the main workbook already contains the hazard fields used here. Hazard scores are not binary toxicity predictions. Polymer values mean released (2), present (1), used (0.5), inconclusive (0.25) and not detected (0), as explained by the source README.
 - **MassSpecGym:** a connectivity-level library match establishes reference availability, not confirmation of an experimental identification or a stereoisomer. Positive/negative counts come from the actual adduct suffix; unspecified polarity stays unspecified. This is an MS/MS layer, not a GC-EI spectral library.
+
+## Spectral plots and external lookups
+
+`massspecgym_peaks.parquet` contains the first three valid source spectra per connectivity key and polarity in source order. Every source connectivity key is covered, not only Borton matches. The 72,115 selected records in this build are all positive-ion spectra: there are no negative-ion or GC-EI peak records to plot. The complete 231,104-spectrum availability counts are retained separately. Peak selection is representative, not exhaustive, averaged, simulated, or taken from the user's illustration. Display intensities are normalized to the source spectrum's base peak = 100%; precursor m/z, adduct, instrument, reported collision energy, source SMILES and spectrum IDs remain traceable. Raw arrays are exportable as JSON. Collision-energy units are not guessed.
+
+Run `python scripts/prepare_spectra.py` to refresh spectral aggregates/peaks from the already-hashed raw source without recomputing PCA, then rebuild `deployment/evidence.zip`. A changed source hash requires the full reference build instead. The full preparation pipeline also builds this spectral subset.
+
+PubChem lookups are separate, on-demand session records, not edits to the default Borton build. Only the requested CAS/name/CID goes to the official NCBI PUG-REST service. CAS candidates require a checksum-valid query, the exact CAS among returned synonyms and agreement between returned full InChIKey and the parsed source SMILES. Multiple candidates require user disambiguation. Retrieval timestamp and CID link are shown. PubChem resolves an identity; it supplies no experimental detectability result in this integration. Offline mode remains available by disabling lookup or supplying reviewed SMILES.
+
+The RDKit property panel uses the cleaned, neutralized parent and also reports the source formula. It does not reproduce proprietary Molinspiration miLogP or molecular volume. Model notebooks are pending: no trained classifier, calibration or validation result is bundled.
 - **Natural occurrence:** unknown. No suitable field is present in the supplied PlastChem workbook. Bioplastic associations are not interpreted as natural occurrence.
 - **NIST:** not integrated. Its raw extraction runs require compound identification and annotation before a compound-to-polymer evidence layer can be produced. PlastChem associations are shown with their own source instead.
 

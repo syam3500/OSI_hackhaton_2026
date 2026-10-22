@@ -6,12 +6,21 @@ from pathlib import Path
 from zipfile import ZipFile
 
 DATA_FILES = ["compounds.parquet", "clap_methods.parquet", "plastchem.parquet", "stavitskaya.parquet",
-              "massspecgym.parquet", "projection.npz", "manifest.json"]
+              "massspecgym.parquet", "massspecgym_peaks.parquet", "projection.npz", "manifest.json"]
+
+
+def required_files(manifest: dict) -> set[str]:
+    required = set(DATA_FILES) - {"massspecgym.parquet", "massspecgym_peaks.parquet"}
+    if manifest["massspecgym"]["loaded"]:
+        required.add("massspecgym.parquet")
+    if manifest["massspecgym"].get("peak_spectra", {}).get("loaded"):
+        required.add("massspecgym_peaks.parquet")
+    return required
 
 
 def create_bundle(directory: Path, destination: Path):
     manifest = json.loads((directory / "manifest.json").read_text())
-    required = [name for name in DATA_FILES if name != "massspecgym.parquet" or manifest["massspecgym"]["loaded"]]
+    required = sorted(required_files(manifest))
     payloads = {name: (directory / name).read_bytes() for name in required}
     checksums = {name: hashlib.sha256(value).hexdigest() for name, value in payloads.items()}
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -43,7 +52,7 @@ def ensure_dataset(directory: Path, bundle: Path) -> Path:
                 raise ValueError("Dataset bundle checksum mismatch")
             payloads[name] = payload
         manifest = json.loads(payloads["manifest.json"])
-        required = set(DATA_FILES) - (set() if manifest["massspecgym"]["loaded"] else {"massspecgym.parquet"})
+        required = required_files(manifest)
         if set(payloads) != required:
             raise ValueError("The deployment dataset bundle is incomplete")
     directory.mkdir(parents=True, exist_ok=True)

@@ -12,12 +12,14 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from elspace.chemistry import DESCRIPTORS, fingerprint_matrix, molecule_image, structure
+from elspace.chemistry import DESCRIPTORS, structure
 from elspace.bootstrap import ensure_dataset
-from elspace.datasets import build_target_store, read_upload, upload_digest
+from elspace.datasets import build_target_store, project_target, read_upload, upload_digest
 from elspace.evidence import EvidenceStore, METHODS, OUTCOMES, search_compounds
 from elspace.plots import chemical_map
 from elspace.ui_chat import render_chat
+from elspace.ui_evidence import render_properties, render_spectra
+from elspace.pubchem import lookup_pubchem
 
 st.set_page_config(page_title="E&L Atlas · Chemical space", page_icon=":material/science:", layout="wide")
 st.html(ROOT / "app/styles.css")
@@ -168,7 +170,10 @@ if page == "Methodology":
     st.subheader("Map interpretation")
     variance = manifest["projection"]["explained_variance_ratio"]
     st.write(f"PCA is computed on unique standardized Morgan fingerprints, then every resolved source row is placed on it. PC1 and PC2 retain {sum(variance[:2]):.1%} of fingerprint variance; three axes retain {sum(variance):.1%}. Nearby points can be dissimilar in the full fingerprint space. Overlapping source rows can share coordinates.")
-    st.write("The alternate descriptor view plots molecular weight against Crippen logP; its third axis is TPSA. Range padding extends each panel min/max by the selected percentage of its span. A zero-width range stays fixed.")
+    st.write("The descriptor view lets you choose different X/Y descriptors and a third Z descriptor in 3D. Available axes are molecular weight, Crippen logP, TPSA, H-bond donors/acceptors, rotatable bonds and formal charge. Three-dimensional chemical space means three numerical axes, not a molecular conformer. Axis choices do not change the seven-descriptor coverage rule. Range padding extends each panel min/max by the selected percentage of its span. A zero-width range stays fixed.")
+    st.subheader("External compounds and detectability")
+    st.write("Borton is a target inventory, not a limit on which compounds can be assessed. PubChem lookup can retrieve candidate structures for an external CAS/name/CID. CAS checksums, PubChem CAS synonyms and full structure InChIKeys are checked; multiple candidates require a choice. External lookups are session-only and do not edit Borton. A PubChem record is not evidence of analytical detectability.")
+    st.write("No classifier is loaded and no class, probability or validation score is fabricated. Classifier notebook integration is not included in this version. Source evidence remains usable independently. Optional LLM explanations require server-side API configuration and cannot override source outcomes or invent a classifier result.")
     st.info("A measured RRF applies to the published FDA conditions. It is not a guarantee for a different method, instrument, matrix or concentration. Represented is an exploratory label, not a validated analytical claim.")
     st.stop()
 
@@ -186,15 +191,15 @@ metrics[3].metric("Structures with MS/MS", f"{borton.loc[borton.ms_reference.eq(
 
 search_left, search_right = st.columns([2, 3], vertical_alignment="bottom")
 with search_left:
-    input_mode = st.radio("Input", ["Dataset search", "SMILES"], horizontal=True, key="input_mode", label_visibility="collapsed")
-    query = st.text_input("Find a compound" if input_mode == "Dataset search" else "Enter a SMILES structure",
-                          placeholder="Name, CAS, InChIKey or Borton ID" if input_mode == "Dataset search" else "e.g. CC(C)(C)c1ccc(O)cc1", key="search")
+    input_mode = st.radio("Input", ["Dataset search", "SMILES", "PubChem lookup"], horizontal=True, key="input_mode", label_visibility="collapsed")
+    query = st.text_input("Find a compound" if input_mode == "Dataset search" else "PubChem CAS, name or CID" if input_mode == "PubChem lookup" else "Enter a SMILES structure",
+                          placeholder="Name, CAS, InChIKey or Borton ID" if input_mode == "Dataset search" else "CAS, compound name, or CID: number" if input_mode == "PubChem lookup" else "e.g. CC(C)(C)c1ccc(O)cc1", key="search")
 with search_right:
     examples = st.columns(3)
     for column, (name, cas) in zip(examples, [("Bisphenol A", "80-05-7"), ("Caprolactam", "105-60-2"), ("Benzoic acid", "65-85-0")]):
         column.button(name, on_click=choose_example, args=(cas,), width="stretch")
 
-if input_mode == "SMILES":
+if input_mode in ["SMILES", "PubChem lookup"]:
     candidates = catalog.iloc[:0]
 else:
     candidates = search_compounds(catalog, query)
@@ -212,17 +217,39 @@ if len(candidates):
     target = catalog[catalog.compound_id.eq(selected_id)].iloc[0].to_dict()
     if len(candidates) > 300:
         st.caption(f"Showing the first 300 of {len(candidates):,} matches. Refine your search to see the rest.")
+elif input_mode == "PubChem lookup":
+    st.caption("Only this lookup query is sent to PubChem (NCBI). No uploaded table is sent. Results do not edit Borton or prove detectability; verify the intended salt/stereochemistry.")
+    if st.button("Look up in PubChem", type="primary"):
+        try:
+            with st.spinner("Checking PubChem identity records…"):
+                st.session_state["pubchem_lookup"] = lookup_pubchem(query)
+        except ValueError as error:
+            st.error(str(error))
+    result = st.session_state.get("pubchem_lookup", {})
+    if result.get("query") == query.strip():
+        external = result.get("candidates", [])
+        if external:
+            chosen = st.selectbox("PubChem candidate · verify identity", list(range(len(external))),
+                                  format_func=lambda index: f"{external[index]['name']} · CID {external[index]['pubchem_cid']} · {external[index]['inchikey']}")
+            target = project_target(external[chosen], DATA / "projection.npz")
+            st.session_state.setdefault("external_compounds", {})[target["compound_id"]] = target
+            st.link_button("View PubChem identity record", target["pubchem_url"])
+            st.caption(f"External query · not added to Borton · retrieved {target['retrieved_utc']}")
+        else:
+            st.warning(result.get("status", "No identity-verified candidate found."))
 else:
     properties = structure(query.strip()) if input_mode == "SMILES" else None
     if properties:
         target = {"compound_id": "QUERY", "name": "Custom SMILES query", "cas_raw": "", "valid_cas": "", "source": "User input",
                   "structure_status": "Resolved", "structure_source": "User-supplied SMILES", "structure_note": "", **properties}
-        with np.load(DATA / "projection.npz") as projection_data:
-            position = np.einsum("ij,kj->ik", fingerprint_matrix([properties["smiles_std"]]) - projection_data["center"], projection_data["axes"], optimize=False)
-        target.update(dict(zip(["map_x", "map_y", "map_z"], position[0])))
+        target = project_target(target, DATA / "projection.npz")
         st.caption("Valid SMILES: evaluated locally against the loaded reference datasets.")
     else:
         st.warning("Enter a valid SMILES structure." if input_mode == "SMILES" else "No local record matches that query. Enter another name or CAS, or switch to SMILES input.")
+        if input_mode == "Dataset search" and query.strip() and st.button("Search this compound in PubChem"):
+            st.session_state["pending_input_mode"] = "PubChem lookup"
+            st.session_state["pending_query"] = query.strip()
+            st.rerun()
 
 with st.expander("Map filters", expanded=False):
     filters = st.columns(4)
@@ -248,8 +275,19 @@ with map_tab:
         color_label = settings[1].selectbox("Colour by", ["Analytical coverage", "Reported hazard evidence", "MS/MS reference"])
         color_by = {"Analytical coverage": "coverage", "Reported hazard evidence": "hazard_evidence", "MS/MS reference": "ms_reference"}[color_label]
         dimensions = settings[2].selectbox("Dimensions", ["2D", "3D"])
+        descriptor_axes = None
+        if projection == "Molecular descriptors":
+            controls = st.columns(3 if dimensions == "3D" else 2)
+            descriptor_axes = []
+            for index, control in enumerate(controls):
+                options = [descriptor for descriptor in DESCRIPTORS if descriptor not in descriptor_axes]
+                preferred = ["mol_weight", "logp", "tpsa"][index]
+                descriptor_axes.append(control.selectbox(["X descriptor", "Y descriptor", "Z descriptor"][index], options,
+                                                         index=options.index(preferred) if preferred in options else 0,
+                                                         format_func=DESCRIPTORS.get, key=f"descriptor_axis_{index}"))
+            st.caption("Choose the descriptors to compare. 3D uses three descriptor axes, not a molecular conformer. Coverage rules and full-fingerprint neighbours are unchanged.")
         plotted = filtered[filtered.smiles_std.ne("")]
-        figure = chemical_map(plotted, store.reference, target or {}, neighbours, color_by, dimensions, projection, show_clap)
+        figure = chemical_map(plotted, store.reference, target or {}, neighbours, color_by, dimensions, projection, show_clap, descriptor_axes)
         chart = st.plotly_chart(figure, width="stretch", theme=None, key="chemical_space", on_select="rerun" if dimensions == "2D" else "ignore",
                                selection_mode="points", config={"displaylogo": False, "scrollZoom": True})
         if dimensions == "2D" and chart.selection.points:
@@ -258,8 +296,14 @@ with map_tab:
             if picked and picked != "QUERY" and signature != st.session_state.get("last_map_selection"):
                 st.session_state["last_map_selection"] = signature
                 st.session_state["selected_compound"] = picked
-                st.session_state["pending_query"] = picked
-                st.session_state["pending_input_mode"] = "Dataset search"
+                external = st.session_state.get("external_compounds", {}).get(picked)
+                if external and external.get("source") == "PubChem lookup":
+                    st.session_state["pubchem_lookup"] = {"query": external["lookup_query"], "candidates": [external]}
+                    st.session_state["pending_query"] = external["lookup_query"]
+                    st.session_state["pending_input_mode"] = "PubChem lookup"
+                else:
+                    st.session_state["pending_query"] = picked
+                    st.session_state["pending_input_mode"] = "Dataset search"
                 st.rerun()
         st.caption(f"{len(plotted):,} target rows shown · {len(filtered) - len(plotted):,} filtered rows lack usable structures. Click a point in 2D to inspect it. Cross = selected compound; diamonds = CLAP. Neighbour lines use full-fingerprint similarity.")
         st.caption("PCA is a visual summary, not a similarity metric. The map includes every resolved target row; unresolved and conflicting rows stay in the table.")
@@ -269,10 +313,11 @@ with map_tab:
             st.write(target["name"])
             st.caption(f"{target['compound_id']} · {target['source']}")
             st.caption("CAS: " + (str(target["cas_raw"]) or "Not supplied"))
-            if target.get("smiles_raw"):
-                st.image(molecule_image(target["smiles_raw"]), width="stretch")
-            else:
-                st.info("Structure " + target["structure_status"].lower())
+            render_properties(target, compact=True)
+            if target.get("structure_status") == "Unresolved" and target.get("valid_cas") and st.button("Resolve structure in PubChem"):
+                st.session_state["pending_input_mode"] = "PubChem lookup"
+                st.session_state["pending_query"] = target["valid_cas"].split(" | ")[0]
+                st.rerun()
             for result in assessments:
                 st.write(f"**{result['label']}**")
                 st.badge(result["status"], color="blue" if result["status"] == "Measured" else "gray")
@@ -298,7 +343,12 @@ with table_tab:
 if target:
     st.divider()
     st.subheader("Evidence for " + target["name"])
-    evidence_tab, neighbour_tab, descriptor_tab, provenance_tab = st.tabs(["Source evidence", "CLAP neighbours", "Descriptor ranges", "Identity & export"])
+    evidence_tab, spectra_tab, properties_tab, neighbour_tab, descriptor_tab, provenance_tab = st.tabs(["Source evidence", "MS/MS spectra", "Molecular properties", "CLAP neighbours", "Descriptor ranges", "Identity & export"])
+    with spectra_tab:
+        render_spectra(store, target, "explore_spectra_" + target["compound_id"])
+    with properties_tab:
+        st.write("**RDKit structure and property panel**")
+        render_properties(target)
     with evidence_tab:
         st.write("**Measured response · FDA CLAP**")
         rows = []
@@ -407,5 +457,5 @@ if target:
                   "plastchem": {"match_basis": plastic_basis, "records": plastics.to_dict("records")},
                   "stavitskaya": {"match_basis": stav_basis, "records": stav.to_dict("records")},
                   "massspecgym": store.spectrum(target), "source_urls": manifest["source_urls"],
-                  "limitations": ["No predictive model", "No toxicity assessment", "No sample spectrum matching", "Natural occurrence unknown", "NIST raw runs not integrated"]}
+                  "limitations": ["Classifier notebooks pending; no model configured", "No toxicity assessment", "No sample spectrum matching", "Natural occurrence unknown", "NIST raw runs not integrated"]}
         st.download_button("Download compound evidence", json.dumps(report, indent=2, default=str), target["compound_id"] + "_evidence.json", "application/json")

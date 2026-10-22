@@ -9,6 +9,7 @@ import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from elspace.chat import EvidenceTools, agent_reply, local_reply
+from elspace.ui_evidence import render_properties, render_spectra
 
 
 def setting(name: str) -> str:
@@ -26,6 +27,11 @@ def show_reply(reply: dict, key: str):
     st.caption(reply.get("engine", "Local evidence tools"))
     for index, evidence in enumerate(reply.get("evidence", [])):
         compound = evidence["compound"]
+        with st.expander("Structure, molecular properties and reference spectra · " + compound["name"]):
+            render_properties(compound)
+            store = st.session_state.get("chat_reference_store")
+            if store is not None:
+                render_spectra(store, compound, f"{key}_spectra_{index}")
         with st.expander("Source results · " + compound["name"]):
             method_rows = []
             for method in evidence["methods"]:
@@ -46,12 +52,23 @@ def show_reply(reply: dict, key: str):
             st.json(evidence["massspecgym"], expanded=False)
             st.download_button("Download this evidence", json.dumps(evidence, indent=2, default=str),
                                compound["compound_id"] + "_chat_evidence.json", "application/json", key=f"{key}_download_{index}")
-        if compound["compound_id"] != "QUERY":
-            if st.button("Open compound on map", key=f"{key}_map_{index}"):
-                st.session_state["pending_workspace"] = "Explore"
+        if st.button("Open compound on map", key=f"{key}_map_{index}"):
+            if compound["source"] == "PubChem lookup":
+                external = st.session_state.get("external_compounds", {}).get(compound["compound_id"])
+                if external is None:
+                    st.warning("Resolve this PubChem identity again before opening the map.")
+                    continue
+                st.session_state["pubchem_lookup"] = {"query": external["lookup_query"], "candidates": [external]}
+                st.session_state["pending_query"] = external["lookup_query"]
+                st.session_state["pending_input_mode"] = "PubChem lookup"
+            elif compound["compound_id"] == "QUERY":
+                st.session_state["pending_query"] = compound["smiles_raw"]
+                st.session_state["pending_input_mode"] = "SMILES"
+            else:
                 st.session_state["pending_query"] = compound["compound_id"]
                 st.session_state["pending_input_mode"] = "Dataset search"
-                st.rerun()
+            st.session_state["pending_workspace"] = "Explore"
+            st.rerun()
     for index, candidate in enumerate(reply.get("candidates", [])):
         if st.button(f"{candidate['name']} · {candidate['compound_id']}", key=f"{key}_candidate_{index}"):
             st.session_state["queued_chat_prompt"] = "Check " + candidate["compound_id"]
@@ -70,7 +87,8 @@ def render_chat(store, cutoff: float, margin: float, neighbours_count: int, vers
         st.session_state["chat_messages"] = []
         st.session_state.pop("chat_context_id", None)
     messages = st.session_state.setdefault("chat_messages", [])
-    tools = EvidenceTools(store, cutoff, margin, neighbours_count)
+    st.session_state["chat_reference_store"] = store
+    external = st.session_state.setdefault("external_compounds", {})
     api_key, model = setting("OPENAI_API_KEY"), setting("OPENAI_MODEL")
     configured = bool(api_key and model)
     with st.sidebar:
@@ -85,12 +103,18 @@ def render_chat(store, cutoff: float, margin: float, neighbours_count: int, vers
         use_agent = st.toggle("Use AI agent", disabled=not configured, key="use_ai_agent",
                               help="Requires OPENAI_API_KEY and OPENAI_MODEL in server secrets. When enabled, your messages and selected source evidence are sent to OpenAI.")
         st.caption("OpenAI agent available" if configured else "Local evidence tools active. AI agent needs server-side API credentials.")
+        detail_level = st.radio("Answer detail", ["Detailed", "Concise"], horizontal=True)
+        allow_pubchem = st.toggle("Look up unknown compounds in PubChem", value=True,
+                                  help="Only the requested CAS/name/CID is sent to NCBI PubChem. Uploaded datasets are not sent. Disable for offline-only use.")
+        st.caption("Classifier notebooks pending; no predictive model is active.")
+    tools = EvidenceTools(store, cutoff, margin, neighbours_count, allow_pubchem, external, detail_level == "Detailed")
     st.title("Ask about your chemical data.")
     active = store.manifest.get("active_targets", {"label": "Borton", "rows": store.manifest["counts"]["borton_rows"]})
     st.caption(f"{active['label']} · {active['rows']:,} target rows · FDA CLAP, chemical classes, hazards, polymers and MS/MS references")
     st.caption("AI agent sends messages and selected evidence to OpenAI." if use_agent else "Local evidence assistant · No API key needed · No RRF or toxicity prediction")
+    st.caption("Unknown CAS/name/CID queries can be sent to PubChem when enabled. External records stay separate from Borton; lookup is not proof of detectability.")
     if not messages:
-        st.write("Check a compound, compare its analytical methods, or inspect the source data.")
+        st.write("Check a compound, including a CAS absent from Borton; compare analytical methods; inspect structures and real reference spectra. For an unknown name, use ‘PubChem: compound name’. You can also provide ‘SMILES: …’ for offline analysis.")
         starters = st.columns(3)
         for column, label, question in zip(starters, ["Check Bisphenol A", "Compare methods", "Data sources"],
                                            ["Check Bisphenol A", "Compare the CLAP methods for Caprolactam", "What datasets are loaded?"]):
@@ -125,7 +149,7 @@ def render_chat(store, cutoff: float, margin: float, neighbours_count: int, vers
             serialized = asdict(reply)
             show_reply(serialized, f"history_{len(messages)}")
         messages.append({"role": "assistant", "text": reply.text, "reply": serialized})
-        if reply.compound_id and reply.compound_id != "QUERY":
+        if reply.compound_id:
             st.session_state["chat_context_id"] = reply.compound_id
         if len(messages) > 40:
             st.session_state["chat_messages"] = messages[-40:]

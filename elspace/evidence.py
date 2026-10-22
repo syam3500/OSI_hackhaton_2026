@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import re
@@ -73,6 +73,7 @@ class EvidenceStore:
     stavitskaya: pd.DataFrame
     massspecgym: pd.DataFrame
     manifest: dict
+    spectra: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def __post_init__(self):
         self.clap = self.compounds[self.compounds.source.eq("FDA CLAP")].reset_index(drop=True).copy()
@@ -86,13 +87,21 @@ class EvidenceStore:
                 {key: group.index.to_numpy() for key, group in frame.groupby("cas")},
             )
         self.msg_index = self.massspecgym.set_index("connectivity_key") if len(self.massspecgym) else None
+        self.peak_indices = self.spectra.groupby("connectivity_key").indices if len(self.spectra) else {}
 
     @classmethod
     def load(cls, directory: Path):
         manifest = json.loads((directory / "manifest.json").read_text())
         load = lambda name: pd.read_parquet(directory / (name + ".parquet"))
         msg = load("massspecgym") if manifest["massspecgym"]["loaded"] else pd.DataFrame()
-        return cls(load("compounds"), load("clap_methods"), load("plastchem"), load("stavitskaya"), msg, manifest)
+        peaks = load("massspecgym_peaks") if manifest["massspecgym"].get("peak_spectra", {}).get("loaded") else pd.DataFrame()
+        return cls(load("compounds"), load("clap_methods"), load("plastchem"), load("stavitskaya"), msg, manifest, peaks)
+
+    def reference_spectra(self, target: dict) -> pd.DataFrame:
+        if target.get("structure_status") == "Conflict":
+            return self.spectra.iloc[:0]
+        key = str(target.get("inchikey", "")).split("-")[0]
+        return self.spectra.iloc[self.peak_indices.get(key, [])].copy()
 
     def layer(self, target: dict, name: str) -> tuple[pd.DataFrame, str]:
         frame = self.plastics if name == "plastics" else self.stavitskaya

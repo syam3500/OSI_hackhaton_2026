@@ -41,6 +41,10 @@ def test_source_methodology_3d_filters_and_rule_changes():
     assert not app.exception
     selectbox(app, "Map axes").set_value("Molecular descriptors").run()
     assert not app.exception
+    selectbox(app, "X descriptor").set_value("hbd").run()
+    selectbox(app, "Y descriptor").set_value("tpsa").run()
+    assert not app.exception
+    assert selectbox(app, "Z descriptor").value not in ["hbd", "tpsa"]
     selectbox(app, "Analytical method").set_value("LCMS_NEG").run()
     assert not app.exception
     next(widget for widget in app.slider if widget.label == "Tanimoto cutoff").set_value(0.9).run()
@@ -72,3 +76,24 @@ def test_new_chat_clears_history_and_unconfigured_agent_is_disabled():
     next(button for button in app.button if button.label == "New chat").click().run()
     assert not app.exception
     assert app.session_state["chat_messages"] == []
+
+
+def test_external_pubchem_candidate_maps_without_changing_borton():
+    from elspace.chemistry import structure
+
+    app = AppTest.from_file(str(ROOT / "app/app.py"), default_timeout=60).run()
+    radio(app, "Workspace").set_value("Explore").run()
+    radio(app, "Input").set_value("PubChem lookup").run()
+    assert not app.exception
+    app.text_input[0].set_value("CID: 702").run()
+    app.session_state["pubchem_lookup"] = {"query": "CID: 702", "candidates": [{"compound_id": "PUBCHEM-702", "name": "Ethanol", "source": "PubChem lookup", "cas_raw": "", "valid_cas": "", "structure_status": "Resolved", "structure_source": "PubChem CID 702", "structure_note": "Test fixture", "pubchem_url": "https://pubchem.ncbi.nlm.nih.gov/compound/702", "pubchem_cid": 702, "retrieved_utc": "2026-10-22", "lookup_query": "CID: 702", **structure("CCO")}]}
+    app.run()
+    assert not app.exception
+    assert app.metric[0].value == "18,266"
+    assert any("Evidence for Ethanol" in heading.value for heading in app.subheader)
+    assert not any(tab.label == "Detectability" for tab in app.tabs)
+    radio(app, "Workspace").set_value("Chat").run()
+    app.chat_input[0].set_value("Check PUBCHEM-702").run()
+    assert not app.exception
+    assert radio(app, "Workspace").value == "Chat"
+    assert app.session_state["chat_messages"][-1]["reply"]["evidence"][0]["compound"]["compound_id"] == "PUBCHEM-702"

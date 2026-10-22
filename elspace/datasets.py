@@ -14,6 +14,14 @@ from elspace.evidence import EvidenceStore
 TARGET_SOURCE = "Uploaded targets"
 
 
+def project_target(target: dict, projection_path: Path) -> dict:
+    projected = dict(target)
+    with np.load(projection_path) as projection:
+        position = np.einsum("ij,kj->ik", fingerprint_matrix([target["smiles_std"]]) - projection["center"], projection["axes"], optimize=False)[0]
+    projected.update(dict(zip(["map_x", "map_y", "map_z"], position)))
+    return projected
+
+
 def read_upload(data: bytes, filename: str, sheet_name: str | None = None) -> pd.DataFrame:
     if len(data) > 25 * 1024 * 1024:
         raise ValueError("Target files must be 25 MB or smaller.")
@@ -82,7 +90,7 @@ def build_target_store(base: EvidenceStore, frame: pd.DataFrame, filename: str, 
     manifest["target_source"] = TARGET_SOURCE
     manifest["active_targets"] = {"label": Path(filename).name, "rows": len(target_frame), "resolved": int(target_frame.structure_status.eq("Resolved").sum()),
                                   "conflicts": int(target_frame.structure_status.eq("Conflict").sum()), "sha256": digest, "scope": "Current browser session only"}
-    return EvidenceStore(compounds, base.methods, base.plastics, base.stavitskaya, base.massspecgym, manifest)
+    return EvidenceStore(compounds, base.methods, base.plastics, base.stavitskaya, base.massspecgym, manifest, base.spectra)
 
 
 def upload_digest(data: bytes) -> str:

@@ -15,13 +15,17 @@ python -m pip install -r requirements.txt
 streamlit run app/app.py
 ```
 
-The local build has prepared data in `data/processed/`. A deployment also includes the small `deployment/evidence.zip` bundle, unpacked and verified automatically when local tables are absent. Raw workbooks, PDFs and the large MassSpecGym source are ignored by Git. The default local chat and chemistry tools run offline once dependencies are installed.
+The local build has prepared data in `data/processed/`. A deployment also includes `deployment/evidence.zip`, unpacked and verified automatically when local tables are absent. The bundle is about 33 MB including representative real spectral peaks. Raw workbooks, PDFs and the large MassSpecGym source are ignored by Git. Local chemistry and evidence work offline; optional PubChem identity lookup and the optional LLM require network access.
 
 ## Chat, agent and data uploads
 
 **Chat** is the default entry point, with conversation history, prompt examples, follow-up compound context, source results and an **Open compound on map** action. Local mode answers focused evidence questions without a model or API key. It is explicitly labeled a local assistant, not an LLM agent.
 
-An optional OpenAI Responses tool-calling agent is implemented. Add `OPENAI_API_KEY` and `OPENAI_MODEL` to server environment/secrets, then enable **Use AI agent** in Chat. It can call read-only compound search, evidence, SMILES and dataset-summary tools. It does not replace the chemistry rules or predict RRFs/toxicity. No real API credentials are bundled, and live model behavior needs account configuration.
+Answers default to **Detailed**, with exact method outcomes/RRF entries, descriptor failures, properties, neighbours, spectrum availability, sources and uncertainty; select **Concise** for the shorter summary. For a CAS absent from the local inventory, enable **Look up unknown compounds in PubChem** and ask, for example, `Can 171599-83-0 be detected using LC/MS positive?`. Unknown names can be requested explicitly as `PubChem: compound name`. The standalone **PubChem lookup** input in Explore also accepts CAS/name/CID. CAS checksums, exact returned CAS synonyms and full structure InChIKeys are checked, multiple distinct candidates require a choice, and external records are never silently appended to Borton. Requests send only the lookup identifier to NCBI, not the uploaded dataset. Lookup is not detectability evidence.
+
+An optional OpenAI Responses tool-calling agent is implemented. Add `OPENAI_API_KEY` and `OPENAI_MODEL` to server environment/secrets, then enable **Use AI agent** in Chat. It can call read-only compound search, evidence, SMILES, PubChem lookup and dataset-summary tools. It does not replace the chemistry rules or predict RRFs/toxicity. No real API credentials are bundled, and live model behavior needs account configuration.
+
+Classifier notebook integration is intentionally excluded from this version. No classifier backend or predictive Detectability tab is included. Source evidence and PubChem identity lookup work independently, and no model class, confidence or validated detection probability is fabricated.
 
 In **Data & sources**, upload **CSV or XLSX** target compounds and map name/CAS/SMILES columns. This changes chat and map targets for your session while retaining the reference layers. Default runtime data is **Parquet**, prepared from the original XLSX/PDF/CSV/TSV sources. Permanent reference/default changes use the preparation pipeline and a new deployment bundle.
 
@@ -30,11 +34,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for Vercel container deployment, alternative 
 ## What is implemented
 
 - Every Borton source row is searchable; every resolved structure is plotted, with no downsampling. Unresolved and conflicting rows remain in the compound table.
-- Interactive 2D/3D fingerprint PCA and molecular-descriptor views, with CLAP overlays and selected-neighbour connections. Click a point in 2D or select a table row to inspect its evidence.
+- Interactive 2D/3D fingerprint PCA and molecular-descriptor views, with selectable X/Y/Z descriptors, CLAP overlays and selected-neighbour connections. Click a point in 2D or select a table row to inspect its evidence. Three-dimensional descriptor space is not a molecular conformer.
 - Search by name, CAS, source ID or InChIKey, plus an explicit SMILES input mode. Known CAS queries use identifier boundaries, not suffix matching.
 - Separate GC/MS, LC/MS positive and LC/MS negative assessments. Exact RRF values at 5, 10 and 20 µg/mL remain separate from non-detection, below-DL and not-reported outcomes.
 - Adjustable Tanimoto cutoff, descriptor range margin and top 3/5 CLAP neighbours. Ranges are calculated separately for the measured panel in each method.
-- Source-linked evidence for Stavitskaya chemical classes, PlastChem hazard scores, polymer associations, functions and uses, and actual MassSpecGym reference-spectrum coverage.
+- Source-linked evidence for Stavitskaya chemical classes, PlastChem hazard scores, polymer associations, functions and uses, and actual MassSpecGym reference-spectrum coverage. A spectral viewer plots 72,115 real representative positive-ion records across all 28,929 connectivity keys; negative-ion and GC-EI traces are explicitly unavailable, never synthesized from the example image.
+- RDKit molecular drawings embedded as data URLs (avoiding per-instance media-cache failures), plus formula, molecular weight, Crippen logP, TPSA, HBD/HBA, rotatable bonds, formal charge, exact mass, heavy atoms, aromatic rings, fraction sp³ and molar refractivity. Source and cleaned-parent formulae remain distinct.
 - Chat interface with local evidence tools, an optional OpenAI tool-calling agent and session CSV/XLSX target uploads.
 - Filters, compound CSV export, detailed evidence JSON export, file SHA-256 provenance and in-app methodology/source pages.
 
