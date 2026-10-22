@@ -25,7 +25,7 @@ An optional OpenAI Responses tool-calling agent is implemented. Add `OPENAI_API_
 
 In **Data & sources**, upload **CSV or XLSX** target compounds and map name/CAS/SMILES columns. This changes chat and map targets for your session while retaining the reference layers. Default runtime data is **Parquet**, prepared from the original XLSX/PDF/CSV/TSV sources. Permanent reference/default changes use the preparation pipeline and a new deployment bundle.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for Streamlit Community Cloud settings, optional agent secrets and updating datasets after deployment.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Vercel container deployment, alternative Streamlit Community Cloud settings, optional agent secrets and updating datasets after deployment.
 
 ## What is implemented
 
