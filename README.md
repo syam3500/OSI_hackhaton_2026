@@ -1,8 +1,8 @@
 # E&L Atlas
 
-A working Streamlit prototype for exploring the Borton chemical space and checking method-specific FDA CLAP coverage. It uses RDKit Morgan fingerprints, Tanimoto similarity and descriptor ranges. There is no predictive model and no RRF is inferred for a query compound.
+**Live app:** https://osi-el-atlas.vercel.app · **Video:** https://www.youtube.com/watch?v=fP61gUSIhU0
 
-The existing `notebooks/borton_ms_id_coverage.ipynb` is preserved. Its previously printed aggregate results are not used as per-compound evidence.
+A working Streamlit prototype for exploring the Borton chemical space and checking method-specific FDA CLAP coverage. It uses RDKit Morgan fingerprints, Tanimoto similarity and descriptor ranges. There is no predictive model and no RRF is inferred for a query compound.
 
 ## Run locally
 
@@ -119,4 +119,4 @@ notebooks/        Existing team notebook
 
 ## Data terms
 
-The software licence is still a team decision. Check each source's redistribution terms before committing or publishing raw or processed datasets. Raw source files remain ignored; Cloud deployment uses only the prepared evidence bundle.
+The code is released under the [MIT License](LICENSE). The licence covers the code only: check each source's redistribution terms before committing or publishing raw or processed datasets. Raw source files remain ignored; Cloud deployment uses only the prepared evidence bundle.
