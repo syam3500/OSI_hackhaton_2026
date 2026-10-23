@@ -1,0 +1,13 @@
+*
+!Dockerfile.vercel
+!requirements.txt
+!app/
+!app/**
+!elspace/
+!elspace/**
+!.streamlit/
+!.streamlit/config.toml
+!deployment/
+!deployment/evidence.zip
+**/__pycache__/
+**/*.pyc

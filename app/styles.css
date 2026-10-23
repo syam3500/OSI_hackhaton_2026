@@ -1,0 +1,47 @@
+.stApp {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.block-container {
+  padding-top: 3.2rem;
+  padding-bottom: 3rem;
+  max-width: 1650px;
+}
+h1 {
+  font-size: 2.6rem !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.055em !important;
+}
+h2, h3 {
+  letter-spacing: -0.035em !important;
+  font-weight: 500 !important;
+}
+[data-testid="stMetric"] {
+  border-top: 1px solid #DCDDE2;
+  padding-top: 0.8rem;
+}
+[data-testid="stMetricValue"] {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.055em;
+}
+[data-testid="stSidebar"] {
+  border-right: 1px solid #DCDDE2;
+}
+[data-testid="stSidebar"] .block-container {
+  padding-top: 2rem;
+}
+[data-testid="stSidebar"] h1 {
+  font-size: 2rem !important;
+}
+[data-testid="stTabs"] button {
+  font-weight: 500;
+}
+[data-testid="stCaptionContainer"] {
+  color: #626979;
+}
+[data-testid="stVerticalBlockBorderWrapper"] {
+  border-radius: 3px;
+}
+div[data-testid="stImage"] img {
+  object-fit: contain;
+}

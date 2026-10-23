@@ -1,0 +1,17 @@
+.git/
+.venv/
+.env*
+.vercel/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+.DS_Store
+data/
+output/
+notebooks/
+tests/
+scripts/
+.streamlit/secrets.toml
+.streamlit/secrets.toml.example
+requirements-dev.txt
+!.dockerignore
